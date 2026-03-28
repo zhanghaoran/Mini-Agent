@@ -60,3 +60,6 @@ docs/assets/preview.html
 CLAUDE.md
 
 .agent_memory.json
+
+# Claude Code settings (machine-specific, may contain API keys)
+.claude/settings.json

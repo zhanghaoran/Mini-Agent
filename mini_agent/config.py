@@ -24,7 +24,7 @@ class LLMConfig(BaseModel):
 
     api_key: str
     api_base: str = "https://api.minimax.io"
-    model: str = "MiniMax-M2.5"
+    model: str = "MiniMax-M2.7"
     provider: str = "anthropic"  # "anthropic" or "openai"
     retry: RetryConfig = Field(default_factory=RetryConfig)
 
@@ -61,6 +61,10 @@ class ToolsConfig(BaseModel):
     enable_mcp: bool = True
     mcp_config_path: str = "mcp.json"
     mcp: MCPConfig = Field(default_factory=MCPConfig)
+
+    # Brave Search
+    enable_brave_search: bool = False
+    brave_api_key: str = ""
 
 
 class Config(BaseModel):
@@ -123,7 +127,7 @@ class Config(BaseModel):
         llm_config = LLMConfig(
             api_key=data["api_key"],
             api_base=data.get("api_base", "https://api.minimax.io"),
-            model=data.get("model", "MiniMax-M2.5"),
+            model=data.get("model", "MiniMax-M2.7"),
             provider=data.get("provider", "anthropic"),
             retry=retry_config,
         )
@@ -155,6 +159,8 @@ class Config(BaseModel):
             enable_mcp=tools_data.get("enable_mcp", True),
             mcp_config_path=tools_data.get("mcp_config_path", "mcp.json"),
             mcp=mcp_config,
+            enable_brave_search=tools_data.get("enable_brave_search", False),
+            brave_api_key=tools_data.get("brave_api_key", ""),
         )
 
         return cls(

@@ -37,6 +37,9 @@ from mini_agent.tools.file_tools import EditTool, ReadTool, WriteTool
 from mini_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_async, set_mcp_timeout_config
 from mini_agent.tools.note_tool import SessionNoteTool
 from mini_agent.tools.skill_tool import create_skill_tools
+from mini_agent.tools.brave_search import BraveSearchTool
+from mini_agent.tools.web_fetch import WebFetchTool
+from mini_agent.tools.crawl4ai_fetch import Crawl4AITool
 from mini_agent.utils import calculate_display_width
 
 
@@ -426,6 +429,25 @@ async def initialize_base_tools(config: Config):
                 print(f"{Colors.YELLOW}⚠️  MCP config file not found: {config.tools.mcp_config_path}{Colors.RESET}")
         except Exception as e:
             print(f"{Colors.YELLOW}⚠️  Failed to load MCP tools: {e}{Colors.RESET}")
+
+    # 5. Brave Search tool
+    if config.tools.enable_brave_search and config.tools.brave_api_key:
+        brave_search_tool = BraveSearchTool(api_key=config.tools.brave_api_key)
+        tools.append(brave_search_tool)
+        print(f"{Colors.GREEN}✅ Loaded Brave Search tool{Colors.RESET}")
+
+    # 6. Web Fetch tool
+    web_fetch_tool = WebFetchTool()
+    tools.append(web_fetch_tool)
+    print(f"{Colors.GREEN}✅ Loaded Web Fetch tool{Colors.RESET}")
+
+    # 7. Crawl4AI Fetch tool (fallback)
+    try:
+        crawl4ai_tool = Crawl4AITool()
+        tools.append(crawl4ai_tool)
+        print(f"{Colors.GREEN}✅ Loaded Crawl4AI Fetch tool (fallback){Colors.RESET}")
+    except Exception as e:
+        print(f"{Colors.YELLOW}⚠️ Crawl4AI not available: {e}{Colors.RESET}")
 
     print()  # Empty line separator
     return tools, skill_loader

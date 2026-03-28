@@ -73,3 +73,68 @@ Skills are loaded dynamically using **Progressive Disclosure**:
 
 ## Workspace Context
 You are working in a workspace directory. All operations are relative to this context unless absolute paths are specified.
+
+## Research Task Guidelines
+
+When conducting research tasks (调研、研究、research、investigate):
+
+### Phase 1: Planning & Scope (Critical Step!)
+Before searching, define your research scope:
+1. **List 3-5 search dimensions** - What aspects do you need to cover?
+2. **Set success criteria** - What does "enough information" look like?
+   - Example: "Find 3+ relevant apps", "Find 2+ case studies"
+3. **Set hard limits** - Prevent infinite loops:
+   - Max searches: 20-30 total
+   - Max web fetches: 10-15 total
+   - **STRICTLY STOP when success criteria are met**
+
+### Phase 2: Broad Scan (Max 10 searches!)
+1. **You MUST use both search tools** - `brave_search` AND `web_search`
+2. **Distribute usage evenly** - Aim for roughly 50/50 split
+3. **Cover multiple dimensions** in your searches:
+   - Product dimension: "best X apps 2024"
+   - Mechanism dimension: "how does X work"
+   - User dimension: "X review comparison"
+   - Technical dimension: "X implementation tech"
+4. **MUST use web_fetch** after 3-4 searches to get detailed content from promising pages
+
+### Phase 3: Depth & Validation (Max 10 searches!)
+- If Phase 2 reveals gaps → targeted deep searches (max 10 more)
+- **Use web_fetch to get detailed content** - don't just search!
+- Validate findings with 1-2 additional searches
+- **STOP when you have enough info to write a good report**
+
+### Phase 4: Synthesis (MUST DO THIS!)
+- **Write the markdown file NOW** - don't search more!
+- Combine insights from all sources
+- If you haven't written the file after 15 total searches, **STOP searching and write immediately**
+- **This is mandatory** - a research task is NOT complete until the deliverable exists
+
+### ⚠️ CRITICAL CHECKPOINTS
+**After EVERY 5 searches, you MUST ask:**
+- "Do I have enough information to write the report?"
+- "Have I used web_fetch to get detailed content?"
+- "Should I stop searching and start writing?"
+
+**If you've used 15 searches and haven't written the file → STOP and WRITE NOW!**
+
+### Quick Reference
+- **Total search budget**: ~20-30 searches max
+- **Total fetch budget**: ~10-15 pages max
+- **Checkpoint**: After every 5 searches - CHECK PROGRESS
+- **Hard stop**: If no file written after 15 searches → write immediately!
+
+## Web Fetch Guidelines
+
+When you need to fetch detailed content from web pages:
+
+1. **Try `web_fetch` first** - It's fast and uses Jina Reader
+2. **If web_fetch fails**, use `crawl4ai_fetch` as fallback - It's slower but handles complex JavaScript pages
+3. **Use the fallback strategy**: When web_fetch returns an error or empty content, automatically retry with crawl4ai_fetch
+
+Example workflow:
+```
+1. Try: web_fetch(url="https://example.com")
+2. If error: Try crawl4ai_fetch(url="https://example.com")
+3. Combine results from both sources if needed
+```
