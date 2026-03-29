@@ -1,0 +1,388 @@
+#!/usr/bin/env python3
+"""
+Mini-Agent Provider Configuration Tool
+
+Reads provider configurations from ~/.config/myllmproviders/my_claude_provider.json
+and updates Mini-Agent config.yaml.
+"""
+
+import json
+import sys
+import os
+from pathlib import Path
+
+CONFIG_FILE = Path.home() / ".config/myllmproviders/my_claude_provider.json"
+MINI_AGENT_DIR = Path.home() / "Documents/projects/Mini-Agent"
+MINI_AGENT_CONFIG = MINI_AGENT_DIR / "mini_agent/config/config.yaml"
+
+# Template config created if file doesn't exist
+TEMPLATE_CONFIG = {
+    "aliyun-coding-plan": {
+        "name": "Aliyun Coding Plan",
+        "options": {
+            "apiKey": "YOUR_ALIYUN_API_KEY",
+            "baseURL": "https://coding.dashscope.aliyuncs.com"
+        },
+        "models": {
+            "qwen3.5-plus": {"name": "qwen3.5-plus"},
+            "kimi-k2.5": {"name": "kimi-k2.5"},
+            "glm-5": {"name": "glm-5"},
+            "MiniMax-M2.5": {"name": "MiniMax-M2.5"}
+        }
+    }
+}
+
+# Provider-specific settings for Mini-Agent
+# provider field: "anthropic" or "openai" - determines the API protocol
+PROVIDER_SETTINGS = {
+    "aliyun-coding-plan": {
+        "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
+        "provider": "anthropic"
+    },
+    "volc-engine-coding-plan": {
+        "base_url": "https://ark.cn-beijing.volces.com/api/coding/v3",
+        "provider": "openai"
+    },
+    "minimax": {
+        "base_url": "https://api.minimaxi.com",
+        "provider": "anthropic"
+    },
+    "zhipuai-coding-plan": {
+        "base_url": "https://open.bigmodel.cn/api/anthropic",
+        "provider": "anthropic"
+    },
+    "deepseek": {
+        "base_url": "https://api.deepseek.com",
+        "provider": "openai"
+    },
+    "ollama": {
+        "base_url": "http://localhost:11434/v1",
+        "provider": "openai"
+    }
+}
+
+# Colors for terminal output
+class Colors:
+    RED = '\033[0;31m'
+    GREEN = '\033[0;32m'
+    YELLOW = '\033[1;33m'
+    BLUE = '\033[0;34m'
+    CYAN = '\033[0;36m'
+    NC = '\033[0m'  # No Color
+
+
+def print_color(color: str, message: str) -> None:
+    """Print a message with color."""
+    print(f"{color}{message}{Colors.NC}")
+
+
+def create_template_config() -> None:
+    """Create template config file with example providers."""
+    config_dir = CONFIG_FILE.parent
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(TEMPLATE_CONFIG, f, indent=2)
+
+    print_color(Colors.GREEN, f"Created template config at {CONFIG_FILE}")
+    print_color(Colors.YELLOW, "Please edit the file to add your API keys and providers.")
+
+
+def load_providers() -> dict:
+    """Load providers from config file."""
+    if not CONFIG_FILE.exists():
+        print_color(Colors.YELLOW, f"Config file not found at {CONFIG_FILE}")
+        print_color(Colors.YELLOW, "Creating template config...")
+        create_template_config()
+        return dict(TEMPLATE_CONFIG)
+
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not data:
+            print_color(Colors.YELLOW, "Config file is empty. Using template.")
+            return dict(TEMPLATE_CONFIG)
+
+        return data
+
+    except json.JSONDecodeError as e:
+        print_color(Colors.RED, f"Error parsing config file: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print_color(Colors.RED, f"Error reading config: {e}")
+        sys.exit(1)
+
+
+def get_provider_info(provider_id: str, provider_data: dict) -> dict:
+    """Extract provider information."""
+    options = provider_data.get('options', {})
+    models = provider_data.get('models', {})
+
+    model_list = [(key, m.get('name', key)) for key, m in models.items()]
+    model_list.sort(key=lambda x: x[1])
+
+    return {
+        'name': provider_data.get('name', provider_id),
+        'api_key': options.get('apiKey', ''),
+        'base_url': options.get('baseURL', ''),
+        'models': model_list
+    }
+
+
+def get_provider_settings(provider_id: str, api_key: str, model: str, base_url: str = "") -> dict:
+    """Get provider-specific settings for Mini-Agent config."""
+    if provider_id in PROVIDER_SETTINGS:
+        settings = PROVIDER_SETTINGS[provider_id].copy()
+        # Always use provider-specific base_url from PROVIDER_SETTINGS for consistency
+        # This ensures correct API endpoints for each provider
+    else:
+        # Default to openai provider for unknown providers
+        settings = {
+            'base_url': base_url,
+            'provider': 'openai'
+        }
+
+    settings['api_key'] = api_key
+    settings['model'] = model
+
+    return settings
+
+
+def read_yaml_config(config_path: Path) -> list:
+    """Read YAML config file and return lines."""
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return f.read().splitlines()
+    return []
+
+
+def update_yaml_config(config_path: Path, settings: dict) -> None:
+    """Update YAML config file with new LLM settings."""
+    lines = read_yaml_config(config_path)
+
+    # Find the LLM Configuration section and update relevant fields
+    new_lines = []
+    in_llm_section = False
+    updated_keys = {'api_key', 'api_base', 'model', 'provider'}
+    already_updated = set()
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Detect LLM Configuration section
+        if '# ===== LLM Configuration =====' in line:
+            in_llm_section = True
+            new_lines.append(line)
+            continue
+
+        # End of LLM section (next section starts)
+        if in_llm_section and stripped.startswith('# =====') and 'LLM' not in line:
+            in_llm_section = False
+
+        # Update LLM config fields
+        if in_llm_section:
+            if stripped.startswith('api_key:'):
+                new_lines.append(f'api_key: "{settings["api_key"]}"')
+                already_updated.add('api_key')
+                continue
+            elif stripped.startswith('api_base:'):
+                new_lines.append(f'api_base: "{settings["base_url"]}"')
+                already_updated.add('api_base')
+                continue
+            elif stripped.startswith('model:'):
+                new_lines.append(f'model: "{settings["model"]}"')
+                already_updated.add('model')
+                continue
+            elif stripped.startswith('provider:'):
+                new_lines.append(f'provider: "{settings["provider"]}"')
+                already_updated.add('provider')
+                continue
+
+        new_lines.append(line)
+
+    # Write updated config
+    with open(config_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(new_lines))
+
+    # Check what was updated
+    if not already_updated:
+        print_color(Colors.YELLOW, "Warning: LLM Configuration section not found or no fields updated")
+    else:
+        print_color(Colors.GREEN, f"Updated: {', '.join(already_updated)}")
+
+
+def action_list() -> list:
+    """List available providers and return provider list."""
+    providers = load_providers()
+
+    print_color(Colors.BLUE, "Available model providers:")
+    print_color(Colors.BLUE, "--------------------------")
+    print()
+
+    provider_list = []
+
+    for provider_id, provider_data in providers.items():
+        info = get_provider_info(provider_id, provider_data)
+        provider_list.append({
+            'id': provider_id,
+            **info
+        })
+
+        print_color(Colors.GREEN, f"{provider_id}")
+        print(f"   URL: {info['base_url']}")
+        if info['models']:
+            for model_key, model_name in info['models']:
+                print(f"   Model: {model_name}")
+        print()
+
+    return provider_list
+
+
+def action_generate() -> None:
+    """Generate Mini-Agent config from provider selection."""
+    providers = load_providers()
+
+    if not providers:
+        print_color(Colors.RED, "Error: No providers found.")
+        sys.exit(1)
+
+    # Build flat list of all models with display format "provider/model"
+    all_models = []
+    for p in providers:
+        info = get_provider_info(p, providers[p])
+        if info['models']:
+            for model_key, model_name in info['models']:
+                display_name = f"{p}/{model_name}"
+                all_models.append({
+                    'provider_id': p,
+                    'model_key': model_key,
+                    'model_name': model_name,
+                    'display_name': display_name,
+                    'api_key': info['api_key'],
+                    'base_url': info['base_url']
+                })
+        else:
+            all_models.append({
+                'provider_id': p,
+                'model_key': p,
+                'model_name': p,
+                'display_name': p,
+                'api_key': info['api_key'],
+                'base_url': info['base_url']
+            })
+
+    print_color(Colors.BLUE, "Available models:")
+    print()
+
+    for i, m in enumerate(all_models, 1):
+        print_color(Colors.GREEN, f"{i}. {m['display_name']}")
+
+    print()
+
+    # Prompt for selection
+    try:
+        selection = input(f"Enter model number (1-{len(all_models)}): ").strip()
+        selection_idx = int(selection) - 1
+
+        if selection_idx < 0 or selection_idx >= len(all_models):
+            print_color(Colors.RED, "Error: Invalid selection.")
+            sys.exit(1)
+
+        selected = all_models[selection_idx]
+
+    except (ValueError, KeyboardInterrupt):
+        print_color(Colors.RED, "Error: Invalid selection.")
+        sys.exit(1)
+
+    print_color(Colors.GREEN, f"Selected: {selected['display_name']}")
+    print()
+
+    # Get provider-specific settings
+    settings = get_provider_settings(
+        provider_id=selected['provider_id'],
+        api_key=selected['api_key'],
+        model=selected['model_name'],
+        base_url=selected['base_url']
+    )
+
+    # Check if config exists
+    if not MINI_AGENT_CONFIG.exists():
+        print_color(Colors.RED, f"Error: Mini-Agent config not found at {MINI_AGENT_CONFIG}")
+        print_color(Colors.YELLOW, "Please ensure Mini-Agent is installed correctly.")
+        sys.exit(1)
+
+    print_color(Colors.CYAN, f"Updating: {MINI_AGENT_CONFIG}")
+    print()
+
+    # Update the config
+    update_yaml_config(MINI_AGENT_CONFIG, settings)
+
+    print()
+    print_color(Colors.GREEN, "Mini-Agent configuration updated successfully!")
+    print_color(Colors.BLUE, f"  Provider: {selected['provider_id']}")
+    print_color(Colors.BLUE, f"  Model: {settings['model']}")
+    print_color(Colors.BLUE, f"  Base URL: {settings['base_url']}")
+    print_color(Colors.BLUE, f"  Protocol: {settings['provider']}")
+
+
+def action_show() -> None:
+    """Show current Mini-Agent configuration."""
+    if not MINI_AGENT_CONFIG.exists():
+        print_color(Colors.RED, f"Mini-Agent config not found: {MINI_AGENT_CONFIG}")
+        return
+
+    lines = read_yaml_config(MINI_AGENT_CONFIG)
+
+    print_color(Colors.BLUE, "Current Mini-Agent LLM Configuration:")
+    print_color(Colors.BLUE, "-------------------------------------")
+    print()
+
+    in_llm_section = False
+    for line in lines:
+        if '# ===== LLM Configuration =====' in line:
+            in_llm_section = True
+        if in_llm_section:
+            print(line)
+            if line.strip().startswith('provider:'):
+                break
+
+
+def print_help() -> None:
+    """Print help message."""
+    print("Usage: mini-agent-provider-config [command]")
+    print()
+    print("Commands:")
+    print("  list, ls              List available model providers")
+    print("  generate, gen         Generate Mini-Agent config (interactive selection)")
+    print("  show                  Show current Mini-Agent LLM configuration")
+    print()
+    print("  -h, --help            Show this help message")
+    print()
+    print("Config file: ~/.config/myllmproviders/my_claude_provider.json")
+    print(f"Target: {MINI_AGENT_CONFIG}")
+
+
+def main() -> None:
+    """Main entry point."""
+    if len(sys.argv) == 1:
+        print_help()
+    else:
+        command = sys.argv[1].lower()
+
+        if command in ('list', 'ls'):
+            action_list()
+        elif command in ('generate', 'gen'):
+            action_generate()
+        elif command == 'show':
+            action_show()
+        elif command in ('-h', '--help', 'help'):
+            print_help()
+        else:
+            print_color(Colors.RED, f"Error: Unknown command '{command}'")
+            print("Run 'mini-agent-provider-config --help' for usage information.")
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
